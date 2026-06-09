@@ -89,6 +89,7 @@ Read when relevant:
 - `references/local-development.md` when adding local database development.
 - `references/non-standard-stacks.md` if the target project is not Supabase + Vercel + GitHub Actions.
 - `references/agent-operating-rules.md` when adding ongoing maintenance rules to the target project's README or deployment docs.
+- `references/agent-packaging.md` if the user wants optional Cursor, Codex, or Claude Code skill/instruction packaging.
 
 Use templates from:
 
@@ -162,6 +163,7 @@ Install or adapt:
 - scheduled orphan preview cleanup for deleted Git branches
 - migration safety checks for duplicate timestamps and destructive SQL
 - docs for setup, secrets, branch model, local development, rollback, and agent operating rules
+- optional agent packaging as a Cursor/Codex/Claude Code skill or project instruction file, only if the user wants it
 
 ## Important Rules
 
@@ -185,5 +187,5 @@ When setup is complete, report:
 - how to test local dev, develop/staging, feature preview, and production migration paths
 - validation commands run and their results
 
-Add a short "Agent Operating Rules" section to the target project's README or deployment docs. If the user explicitly wants a Cursor skill, `AGENTS.md`, Claude instruction file, or project rule, offer to convert `references/agent-operating-rules.md` into that format as an optional follow-up.
+Add a short "Agent Operating Rules" section to the target project's README or deployment docs. If the user explicitly wants Cursor, Codex, or Claude Code packaging, read `references/agent-packaging.md` and offer the appropriate optional skill or instruction-file install.
 

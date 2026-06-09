@@ -47,6 +47,7 @@ It will tell you:
 - how to choose a data hydration policy
 - when to use the default Supabase/Vercel/GitHub templates
 - when to adapt the pattern to another stack
+- how to optionally package SafeAgentDB as a Cursor, Codex, or Claude Code skill/instruction set
 - which reference files to read next
 - what done looks like
 
@@ -182,11 +183,17 @@ agent-handoff/
     local-development.md
     non-standard-stacks.md
     agent-operating-rules.md
+    agent-packaging.md
 
 templates/
   branching-config.example.json
   package-scripts.json
   package-dev-dependencies.json
+  skills/
+    safeagentdb/
+  agent-instructions/
+    AGENTS.md
+    CLAUDE.md
   scripts/
     supabase/
     ci/
@@ -209,6 +216,8 @@ The default templates include:
 - GitHub Actions for orphan cleanup
 - package scripts
 - example config
+- optional `SKILL.md` package for Cursor, Codex, and Claude Code
+- optional `AGENTS.md` and `CLAUDE.md` project instruction templates
 
 ## Safety Principles
 
