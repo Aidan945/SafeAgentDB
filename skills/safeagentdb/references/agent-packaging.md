@@ -1,6 +1,6 @@
 # Optional Agent Packaging
 
-SafeAgentDB works without a skill. The core setup is `agent-handoff/main.md` plus the templates.
+SafeAgentDB's primary install path is this skill. The core setup lives in `SKILL.md` plus bundled references and templates.
 
 After installation, users may also choose to add persistent agent guidance so future agents know how to maintain the infrastructure.
 
@@ -12,7 +12,7 @@ For `npx skills add Aidan945/SafeAgentDB`, keep the canonical skill at:
 skills/safeagentdb/SKILL.md
 ```
 
-The `skills` CLI discovers `SKILL.md` files at the repository root and under top-level skill container folders such as `skills/` and `.agents/skills/`. A skill buried under `templates/skills/` is useful as a copy template, but it is not the primary published skill.
+The `skills` CLI discovers `SKILL.md` files at the repository root and under top-level skill container folders such as `skills/` and `.agents/skills/`.
 
 ## Recommendation
 

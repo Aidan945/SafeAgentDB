@@ -6,113 +6,47 @@ SafeAgentDB lets multi-agent teams create branches and PRs that are easy to test
 
 Built first for **Supabase + Vercel + GitHub Actions**, with guidance for adapting the same infrastructure pattern to other stacks.
 
-## For Users: Paste This Into Your AI Agent
+## Install The Skill
 
-Paste this into the agent working in your project:
+Install SafeAgentDB with the open `skills` CLI:
+
+```bash
+npx skills add https://github.com/Aidan945/SafeAgentDB --skill safeagentdb
+```
+
+Shorthand:
+
+```bash
+npx skills add Aidan945/SafeAgentDB --skill safeagentdb
+```
+
+You can also target a specific agent:
+
+```bash
+npx skills add Aidan945/SafeAgentDB --skill safeagentdb --agent cursor
+npx skills add Aidan945/SafeAgentDB --skill safeagentdb --agent codex
+npx skills add Aidan945/SafeAgentDB --skill safeagentdb --agent claude-code
+```
+
+## Use The Skill
+
+After installing, start your agent in the project where you want SafeAgentDB installed and say:
 
 ```text
-I want you to integrate SafeAgentDB into this project.
+Use the safeagentdb skill.
 
-Read the README at:
-
-https://github.com/Aidan945/SafeAgentDB
-
-Then follow the main agent handoff file:
-
-agent-handoff/main.md
+I want to build SafeAgentDB-style database safety infrastructure into this software platform.
 
 First inspect my current project. Determine my framework, database, deployment platform, CI system, migration setup, environment variable setup, and branch model.
 
-If my project uses Supabase, Vercel, and GitHub Actions, use the SafeAgentDB templates to set up safe local, develop, preview, and production database workflows.
+If my project uses Supabase, Vercel, and GitHub Actions, use the SafeAgentDB skill templates to set up safe local, develop, preview, and production database workflows.
 
 If my project uses a different stack, do not blindly copy the templates. Use SafeAgentDB as a conceptual model, explain what needs to be adapted, and work with me to design the equivalent setup for my infrastructure.
 
 Before making infrastructure changes, explain what credentials and permissions you need, why you need them, and where they will be stored. Do not commit secrets.
 ```
 
-## Optional: Install As An Agent Skill
-
-SafeAgentDB can also be installed as a reusable agent skill with the open `skills` CLI:
-
-```bash
-npx skills add Aidan945/SafeAgentDB
-```
-
-The installable skill lives at:
-
-```text
-skills/safeagentdb/SKILL.md
-```
-
-You can also target specific agents:
-
-```bash
-npx skills add Aidan945/SafeAgentDB --agent cursor
-npx skills add Aidan945/SafeAgentDB --agent codex
-npx skills add Aidan945/SafeAgentDB --agent claude-code
-```
-
-Agent-specific manual install paths:
-
-```text
-Cursor:      .cursor/skills/safeagentdb/SKILL.md
-Codex:       .agents/skills/safeagentdb/SKILL.md
-Claude Code: .claude/skills/safeagentdb/SKILL.md
-```
-
-The skill is optional. The core setup still starts with:
-
-```text
-agent-handoff/main.md
-```
-
-## For AI Agents: Start Here
-
-If you are an AI agent reading this README, your next step is:
-
-```text
-Read agent-handoff/main.md
-```
-
-That file is the canonical setup entry point.
-
-It will tell you:
-
-- what to inspect first
-- what credentials to ask for
-- how to choose a data hydration policy
-- when to use the default Supabase/Vercel/GitHub templates
-- when to adapt the pattern to another stack
-- how to optionally package SafeAgentDB as a Cursor, Codex, or Claude Code skill/instruction set
-- which reference files to read next
-- what done looks like
-
-Do **not** start by copying templates. Start by understanding the target project.
-
-## Why This Exists
-
-AI agents can move fast, but database-backed apps are risky.
-
-Without isolated database environments:
-
-- Agents can accidentally point feature work at production.
-- A bad migration can break a shared development database.
-- Multiple agents can overwrite or corrupt each other's test data.
-- Preview deployments may all share one staging database.
-- Users cannot safely test PRs against realistic deployed behavior.
-- Local database changes may not match cloud environments.
-
-SafeAgentDB gives agents a safer operating model:
-
-```text
-main      -> production app + production database
-develop   -> staging app + persistent develop database
-feature/* -> preview app + isolated preview database
-agent/*   -> preview app + isolated preview database
-local     -> local app + local Docker database
-```
-
-## What It Enables
+## What SafeAgentDB Enables
 
 SafeAgentDB helps AI agents set up:
 
@@ -143,121 +77,35 @@ The default templates are built for:
 
 If your project uses a different database, deployment platform, or CI provider, SafeAgentDB should be treated as a conceptual model. The AI agent should inspect your codebase, explain what needs to change, and adapt the pattern to your infrastructure.
 
-## How It Works
+## Skill Contents
 
-SafeAgentDB gives the AI agent one main setup document:
-
-```text
-agent-handoff/main.md
-```
-
-That file references supporting docs only when needed:
+Everything the agent needs is bundled inside the skill:
 
 ```text
-agent-handoff/references/
-```
-
-Templates live in:
-
-```text
-templates/
-```
-
-The agent should use those templates only after inspecting your project and confirming the setup with you.
-
-## Data Hydration Policy
-
-SafeAgentDB supports different ways to populate preview databases.
-
-Recommended default:
-
-```text
-production/default schema -> persistent develop
-persistent develop data   -> feature/agent previews
-local Docker Supabase     -> migrations + seed only
-```
-
-The agent should ask before copying any real data.
-
-Depending on your project, previews can use:
-
-- synthetic seed data
-- scrubbed data
-- copied development data
-- selected public tables
-- selected auth users with preview passwords
-- selected storage buckets
-
-Production data should not be copied into previews unless you explicitly approve it and confirm privacy/compliance requirements.
-
-## Credentials
-
-For full automation, the AI agent may ask for:
-
-- Vercel access token
-- Vercel project name, project ID, and team/user scope
-- Supabase access token
-- Supabase production/default project ref
-- Supabase develop branch ref/name
-- GitHub authentication or token
-- permission to install or run Supabase CLI and Vercel CLI
-- preview user password, only if copying auth users into previews
-
-The agent should explain why each credential is needed before asking for it.
-
-Secrets should be stored in GitHub Actions secrets, Vercel environment variables, Supabase settings, or local CLI auth. They should never be committed to the repo.
-
-## Project Structure
-
-```text
-agent-handoff/
-  main.md
-  references/
-    setup-process.md
-    credentials.md
-    data-hydration-policy.md
-    local-development.md
-    non-standard-stacks.md
-    agent-operating-rules.md
-    agent-packaging.md
-
-templates/
-  branching-config.example.json
-  package-scripts.json
-  package-dev-dependencies.json
-  skills/
-    safeagentdb/
-  agent-instructions/
-    AGENTS.md
-    CLAUDE.md
-  scripts/
-    supabase/
-    ci/
-  .github/
-    workflows/
-
 skills/
   safeagentdb/
     SKILL.md
+    references/
+      setup-process.md
+      credentials.md
+      data-hydration-policy.md
+      local-development.md
+      non-standard-stacks.md
+      agent-operating-rules.md
+      agent-packaging.md
+    templates/
+      branching-config.example.json
+      package-scripts.json
+      package-dev-dependencies.json
+      scripts/
+        supabase/
+        ci/
+      .github/
+        workflows/
+      agent-instructions/
+        AGENTS.md
+        CLAUDE.md
 ```
-
-## What The Templates Include
-
-The default templates include:
-
-- Supabase branch provisioning
-- Supabase preview branch cleanup
-- orphan preview branch cleanup
-- local Supabase env switching
-- migration application
-- migration safety checks
-- GitHub Actions for preview branches
-- GitHub Actions for migration deployment
-- GitHub Actions for orphan cleanup
-- package scripts
-- example config
-- optional `SKILL.md` package for Cursor, Codex, and Claude Code
-- optional `AGENTS.md` and `CLAUDE.md` project instruction templates
 
 ## Safety Principles
 
@@ -273,8 +121,6 @@ SafeAgentDB is built around a few rules:
 
 ## Status
 
-SafeAgentDB is an agent-assisted infrastructure kit. It is not a one-click SaaS product.
+SafeAgentDB is an installable agent skill and infrastructure template kit.
 
-It gives your AI agent the docs, templates, and guardrails needed to set up safer database workflows in your project with your approval.
-
-The default implementation targets Supabase, Vercel, and GitHub Actions. Other stacks require adaptation.
+It is not a one-click SaaS product. The skill walks an AI agent through inspecting your project, asking for the right credentials, choosing a hydration policy, and installing the safest version of the workflow for your stack.

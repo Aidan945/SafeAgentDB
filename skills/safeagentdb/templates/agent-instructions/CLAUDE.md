@@ -14,10 +14,10 @@ Use these instructions when working on database infrastructure, migrations, prev
 
 ## Setup Reference
 
-For the full setup and maintenance workflow, read:
+For the full setup and maintenance workflow, use the installed SafeAgentDB skill:
 
 ```text
-agent-handoff/main.md
+safeagentdb
 ```
 
 If this project does not use Supabase, Vercel, and GitHub Actions, treat SafeAgentDB as a conceptual model and adapt with the user's approval.

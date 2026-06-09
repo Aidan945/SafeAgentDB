@@ -1,6 +1,6 @@
 # Setup Process
 
-Use this as the installation flow after reading `../main.md`.
+Use this as the installation flow after reading `../SKILL.md`.
 
 ## Fit Check
 
