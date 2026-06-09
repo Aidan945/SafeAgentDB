@@ -8,13 +8,7 @@ Built first for **Supabase + Vercel + GitHub Actions**, with guidance for adapti
 
 ## For Users: Paste This Into Your AI Agent
 
-Give your AI agent this repo URL:
-
-```text
-https://github.com/Aidan945/SafeAgentDB
-```
-
-Then paste this into the agent working in your project:
+Paste this into the agent working in your project:
 
 ```text
 I want you to integrate SafeAgentDB into this project.
