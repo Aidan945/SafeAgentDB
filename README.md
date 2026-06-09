@@ -30,6 +30,42 @@ If my project uses a different stack, do not blindly copy the templates. Use Saf
 Before making infrastructure changes, explain what credentials and permissions you need, why you need them, and where they will be stored. Do not commit secrets.
 ```
 
+## Optional: Install As An Agent Skill
+
+SafeAgentDB can also be installed as a reusable agent skill with the open `skills` CLI:
+
+```bash
+npx skills add Aidan945/SafeAgentDB
+```
+
+The installable skill lives at:
+
+```text
+skills/safeagentdb/SKILL.md
+```
+
+You can also target specific agents:
+
+```bash
+npx skills add Aidan945/SafeAgentDB --agent cursor
+npx skills add Aidan945/SafeAgentDB --agent codex
+npx skills add Aidan945/SafeAgentDB --agent claude-code
+```
+
+Agent-specific manual install paths:
+
+```text
+Cursor:      .cursor/skills/safeagentdb/SKILL.md
+Codex:       .agents/skills/safeagentdb/SKILL.md
+Claude Code: .claude/skills/safeagentdb/SKILL.md
+```
+
+The skill is optional. The core setup still starts with:
+
+```text
+agent-handoff/main.md
+```
+
 ## For AI Agents: Start Here
 
 If you are an AI agent reading this README, your next step is:
@@ -199,6 +235,10 @@ templates/
     ci/
   .github/
     workflows/
+
+skills/
+  safeagentdb/
+    SKILL.md
 ```
 
 ## What The Templates Include

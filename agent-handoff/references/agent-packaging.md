@@ -4,6 +4,16 @@ SafeAgentDB works without a skill. The core setup is `agent-handoff/main.md` plu
 
 After installation, users may also choose to add persistent agent guidance so future agents know how to maintain the infrastructure.
 
+## Publishable Skill Location
+
+For `npx skills add Aidan945/SafeAgentDB`, keep the canonical skill at:
+
+```text
+skills/safeagentdb/SKILL.md
+```
+
+The `skills` CLI discovers `SKILL.md` files at the repository root and under top-level skill container folders such as `skills/` and `.agents/skills/`. A skill buried under `templates/skills/` is useful as a copy template, but it is not the primary published skill.
+
 ## Recommendation
 
 Use two layers:
@@ -35,7 +45,7 @@ Alternative cross-agent install:
 Use the template:
 
 ```text
-templates/skills/safeagentdb/SKILL.md
+skills/safeagentdb/SKILL.md
 ```
 
 Cursor also supports project rules/instructions. If the user wants always-on guidance, add the relevant rules from:
@@ -67,7 +77,7 @@ Use:
 
 ```text
 templates/agent-instructions/AGENTS.md
-templates/skills/safeagentdb/SKILL.md
+skills/safeagentdb/SKILL.md
 ```
 
 `AGENTS.md` is always-on project guidance. The skill is loaded on demand when Codex decides the task matches its description or when explicitly invoked.
@@ -98,7 +108,7 @@ Use:
 
 ```text
 templates/agent-instructions/CLAUDE.md
-templates/skills/safeagentdb/SKILL.md
+skills/safeagentdb/SKILL.md
 ```
 
 ## Cross-Agent Option
