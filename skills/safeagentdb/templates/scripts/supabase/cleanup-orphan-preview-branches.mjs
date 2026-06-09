@@ -5,33 +5,15 @@ import process from 'node:process';
 const CONFIG_PATH = process.env.BRANCHING_CONFIG_PATH || 'branching-config.json';
 const config = existsSync(CONFIG_PATH) ? JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) : {};
 const parentProjectRef = process.env.SUPABASE_PARENT_PROJECT_REF || config.supabase?.parentProjectRef;
-const developBranchRef = process.env.SUPABASE_DEVELOP_BRANCH_REF || config.supabase?.developBranchRef;
-const previewPrefix = process.env.PREVIEW_BRANCH_PREFIX || config.preview?.namePrefix || 'preview-';
+const developBranchName = process.env.SUPABASE_DEVELOP_BRANCH_NAME || config.supabase?.developBranchName || 'develop';
 const vercelScope = process.env.VERCEL_SCOPE || config.vercel?.scope;
 const vercelProjectName = process.env.VERCEL_PROJECT_NAME || config.vercel?.projectName;
+const githubRepository = process.env.GITHUB_REPOSITORY || config.github?.repository;
 const envNames = Object.values({
   supabaseUrl: config.envKeys?.supabaseUrl || 'NEXT_PUBLIC_SUPABASE_URL',
   supabaseAnonKey: config.envKeys?.supabaseAnonKey || 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   supabaseServiceRoleKey: config.envKeys?.supabaseServiceRoleKey || 'SUPABASE_SERVICE_ROLE_KEY',
 });
-
-function parseArgs(argv) {
-  const args = { _: [] };
-  for (let i = 2; i < argv.length; i += 1) {
-    const part = argv[i];
-    if (!part.startsWith('--')) {
-      args._.push(part);
-      continue;
-    }
-    const key = part.slice(2);
-    args[key] = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : 'true';
-  }
-  return args;
-}
-
-function slugify(value) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 45);
-}
 
 function run(command, args) {
   const result = spawnSync(command, args, {
@@ -39,7 +21,6 @@ function run(command, args) {
     shell: process.platform === 'win32',
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe'],
-    timeout: 90_000,
   });
   if (result.error) throw new Error(`${command} ${args.join(' ')} failed to start: ${result.error.message}`);
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed:\n${result.stdout || ''}\n${result.stderr || ''}`);
@@ -71,13 +52,21 @@ function jsonArray(output) {
   return JSON.parse(output.slice(first, last + 1));
 }
 
-function listBranches(projectRef) {
-  try {
-    return jsonArray(supabase(['branches', 'list', '--project-ref', projectRef, '-o', 'json']));
-  } catch (error) {
-    console.log(`Could not list branches for ${projectRef}: ${error.message}`);
-    return [];
-  }
+async function githubBranchExists(branchName) {
+  if (!process.env.GITHUB_TOKEN) throw new Error('Missing GITHUB_TOKEN');
+  if (!githubRepository) throw new Error('Missing GITHUB_REPOSITORY or branching-config.json github.repository.');
+  const response = await fetch(
+    `https://api.github.com/repos/${githubRepository}/branches/${encodeURIComponent(branchName)}`,
+    {
+      headers: {
+        authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+        accept: 'application/vnd.github+json',
+      },
+    },
+  );
+  if (response.status === 404) return false;
+  if (!response.ok) throw new Error(`GitHub branch lookup failed for ${branchName}: ${response.status} ${await response.text()}`);
+  return true;
 }
 
 function removeVercelEnv(name, gitBranch) {
@@ -87,38 +76,39 @@ function removeVercelEnv(name, gitBranch) {
   if (vercelScope) args.push('--scope', vercelScope);
   try {
     npx(args);
-    console.log(`Removed Vercel env ${name}`);
   } catch (error) {
-    if (String(error.message).includes('not found')) return;
-    console.log(`Vercel env cleanup warning for ${name}:\n${error.message}`);
+    if (!String(error.message).includes('not found')) {
+      console.log(`Vercel env cleanup warning for ${name} (${gitBranch}):\n${error.message}`);
+    }
   }
 }
 
-function main() {
+async function main() {
   if (!parentProjectRef) throw new Error('Missing SUPABASE_PARENT_PROJECT_REF or branching-config.json supabase.parentProjectRef.');
   if (!process.env.SUPABASE_ACCESS_TOKEN) throw new Error('Missing SUPABASE_ACCESS_TOKEN');
-  const args = parseArgs(process.argv);
-  const gitBranch = args['git-branch'] || args._[0] || process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME;
-  if (!gitBranch) throw new Error('Missing git branch');
-  const expectedName = args.name || `${previewPrefix}${slugify(gitBranch)}`;
-  let foundBranch = false;
-  for (const projectRef of [parentProjectRef, developBranchRef].filter(Boolean)) {
-    const branch = listBranches(projectRef).find((item) => item.name === expectedName || item.git_branch === gitBranch);
-    if (!branch) continue;
-    foundBranch = true;
-    console.log(`Deleting Supabase preview branch ${branch.name}`);
-    supabase(['branches', 'delete', branch.name, '--project-ref', projectRef, '--yes']);
+  const branches = jsonArray(supabase(['branches', 'list', '--project-ref', parentProjectRef, '-o', 'json']));
+  const persistentGitBranches = new Set((config.persistentPreviews || []).map((preview) => preview.gitBranch));
+  const previews = branches.filter((branch) => (
+    !branch.is_default &&
+    branch.name !== developBranchName &&
+    branch.git_branch &&
+    !persistentGitBranches.has(branch.git_branch)
+  ));
+
+  for (const branch of previews) {
+    const exists = await githubBranchExists(branch.git_branch);
+    if (exists) {
+      console.log(`Keeping ${branch.name}: Git branch ${branch.git_branch} exists`);
+      continue;
+    }
+
+    console.log(`Deleting orphan Supabase branch ${branch.name}; Git branch ${branch.git_branch} no longer exists`);
+    supabase(['branches', 'delete', branch.name, '--project-ref', parentProjectRef, '--yes']);
+    for (const envName of envNames) removeVercelEnv(envName, branch.git_branch);
   }
-  if (!foundBranch) {
-    console.log(`No Supabase preview branch found for ${gitBranch}; skipping Vercel env cleanup.`);
-    return;
-  }
-  for (const name of envNames) removeVercelEnv(name, gitBranch);
 }
 
-try {
-  main();
-} catch (error) {
+main().catch((error) => {
   console.error(error.stack || error);
   process.exit(1);
-}
+});

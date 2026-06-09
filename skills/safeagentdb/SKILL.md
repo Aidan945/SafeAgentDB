@@ -38,6 +38,7 @@ This skill is self-contained. Read the bundled references as needed:
 - `references/data-hydration-policy.md` before creating develop or preview databases.
 - `references/local-development.md` when adding local database development.
 - `references/non-standard-stacks.md` if the target project is not Supabase + Vercel + GitHub Actions.
+- `references/troubleshooting.md` when debugging previews, hydration, migrations, or costs after setup.
 - `references/agent-operating-rules.md` when adding ongoing maintenance rules to the target project's docs.
 - `references/agent-packaging.md` if the user wants Cursor, Codex, or Claude Code packaging.
 
@@ -46,6 +47,7 @@ Use bundled templates from:
 - `templates/branching-config.example.json`
 - `templates/package-scripts.json`
 - `templates/package-dev-dependencies.json`
+- `templates/docs/database-branching.md`
 - `templates/scripts/supabase/`
 - `templates/scripts/ci/`
 - `templates/.github/workflows/`
@@ -128,11 +130,11 @@ Read `references/non-standard-stacks.md`, explain the adaptation plan to the use
 ## Core Workflow
 
 1. Summarize the target project's current state.
-2. Ask the user to confirm the intended branch/database model.
-3. Explain needed credentials and ask permission before using or setting them.
+2. Copy `templates/docs/database-branching.md` into the project, fill in the placeholders as the proposed plan, and review that document with the user. The approved document stays in the repo as the source of truth and decision record.
+3. Explain needed credentials and costs, and ask permission before using or setting anything. Database branching is billed per branch-hour; confirm the user's plan supports it.
 4. Confirm the data hydration policy before copying data.
 5. Install or adapt scripts, workflows, package scripts, config, and docs.
-6. Validate with safe local and CI checks.
+6. Validate with safe local and CI checks, including `npm run preview:provision -- <branch> --dry-run` for the cloud path.
 7. Report changed files, remaining secrets/config, and testing steps.
 
 ## Install Or Adapt
@@ -151,8 +153,9 @@ Install or adapt:
 - optional storage bucket creation and object copying
 - cleanup automation for closed or deleted preview branches
 - scheduled orphan preview cleanup for deleted Git branches
+- optional persistent preview environments (long-lived design/demo branches with custom domains) that cleanup skips
 - migration safety checks for duplicate timestamps and destructive SQL
-- docs for setup, secrets, branch model, local development, rollback, and agent operating rules
+- a committed branching architecture doc (from `templates/docs/database-branching.md`) covering branch model, hydration policy, secrets, OAuth callbacks, and debugging
 - optional agent packaging as a Cursor/Codex/Claude Code skill or project instruction file, only if the user wants it
 
 ## Data Source Rule
@@ -210,5 +213,6 @@ When finished, report:
 - what database previews are hydrated from
 - whether auth users, public data, and storage are copied or seeded
 - how to test local dev, develop/staging, feature preview, and production migration paths
-- validation commands run
+- validation commands run, including the provision dry-run output
+- where the branching architecture doc lives in the repo
 

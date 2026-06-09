@@ -2,7 +2,7 @@
 
 Database safety infrastructure for AFK agentic development.
 
-SafeAgentDB lets multi-agent teams create branches and PRs that are easy to test on live preview URLs, each backed by an isolated database environment. Agents can run migrations, hydrate realistic data, and test real app behavior without risking production, corrupting the shared development database, or interfering with other agents.
+SafeAgentDB is built for serious vibe coders shipping real products with a team — whether your teammates are people, AI agents, or both. Once you have many branches in flight at the same time, one shared database becomes the thing everyone breaks. SafeAgentDB gives every branch and PR a live preview URL backed by its own isolated database, so agents can run migrations, hydrate realistic data, and test real app behavior without risking production, corrupting shared development data, or stepping on each other.
 
 Built first for **Supabase + Vercel + GitHub Actions**, with guidance for adapting the same infrastructure pattern to other stacks.
 
@@ -50,20 +50,14 @@ Before making infrastructure changes, explain what credentials and permissions y
 
 SafeAgentDB helps AI agents set up:
 
-- Local database development
-- Persistent development/staging databases
-- Branch-specific preview databases
-- Live preview URLs backed by isolated databases
-- Migration checks before merge
-- Preview-only feature migrations
-- Production migration flow
-- Optional realistic data hydration
-- Optional auth user copying for previews
-- Optional storage bucket copying
-- Vercel preview environment variable wiring
-- Preview redeploys after env changes
-- Preview cleanup on PR close
-- Orphan preview cleanup for deleted branches
+- Local Docker database development
+- A persistent develop/staging database
+- Branch-specific preview databases with live preview URLs
+- Safe migration flow: checks before merge, preview-only feature migrations, production deploys from main
+- Optional hydration of realistic data, auth users, and storage into previews
+- Vercel preview env wiring with automatic redeploys after env changes
+- Cleanup on PR close plus scheduled orphan cleanup, with persistent design/demo environments skipped
+- Dry-run provisioning and a committed branching architecture doc as the project's source of truth
 
 The result: agents can work in parallel, publish PRs, and give users live URLs to test without touching production or shared development data.
 
@@ -91,12 +85,15 @@ skills/
       data-hydration-policy.md
       local-development.md
       non-standard-stacks.md
+      troubleshooting.md
       agent-operating-rules.md
       agent-packaging.md
     templates/
       branching-config.example.json
       package-scripts.json
       package-dev-dependencies.json
+      docs/
+        database-branching.md
       scripts/
         supabase/
         ci/

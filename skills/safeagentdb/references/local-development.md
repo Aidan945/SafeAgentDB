@@ -25,8 +25,8 @@ Typical package scripts:
 
 ```json
 {
-  "dev:local": "tsx scripts/supabase/use-branch-env.ts local && next dev",
-  "env:local": "tsx scripts/supabase/use-branch-env.ts local"
+  "dev:local": "node scripts/supabase/use-branch-env.mjs local && next dev",
+  "env:local": "node scripts/supabase/use-branch-env.mjs local"
 }
 ```
 
@@ -39,6 +39,20 @@ SUPABASE_SERVICE_ROLE_KEY
 ```
 
 If the target project uses different names, update `branching-config.json`.
+
+## Authoring Migrations
+
+To generate a migration from local schema changes made in Studio or SQL:
+
+```bash
+npm run db:diff
+```
+
+To pull remote schema into committed migrations and regenerate types:
+
+```bash
+npm run db:pull
+```
 
 ## Migration Testing
 

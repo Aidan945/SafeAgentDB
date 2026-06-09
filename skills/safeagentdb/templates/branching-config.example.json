@@ -18,6 +18,7 @@
     "projectId": "your-vercel-project-id",
     "scope": "your-vercel-team-or-user-scope"
   },
+  "persistentPreviews": [],
   "envKeys": {
     "supabaseUrl": "NEXT_PUBLIC_SUPABASE_URL",
     "supabaseAnonKey": "NEXT_PUBLIC_SUPABASE_ANON_KEY",

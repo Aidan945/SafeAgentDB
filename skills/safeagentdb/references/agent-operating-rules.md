@@ -23,6 +23,8 @@ Use these rules whenever an AI agent changes:
 - Do not run destructive migrations without explicit review.
 - Keep local development independent from GitHub pushes and cloud preview branches.
 - Preserve unrelated user changes and untracked files.
+- Do not delete database branches for environments listed in `persistentPreviews` in `branching-config.json`.
+- Keep the repo's database branching doc up to date when changing any of this infrastructure.
 
 ## Local Development
 

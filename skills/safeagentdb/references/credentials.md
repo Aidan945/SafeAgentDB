@@ -14,6 +14,14 @@ Before requesting or setting credentials, explain:
 
 Never commit secret values. Do not print secret values after the user provides them.
 
+## Cost Check
+
+Confirm costs with the user before the first provision:
+
+- Supabase database branching is a paid feature billed per branch-hour and requires a plan with branching enabled.
+- Every open feature/agent branch can hold a live preview branch; many parallel agents means many concurrent branches.
+- PR-close cleanup and the scheduled orphan cleanup are what keep this bounded — do not skip installing them.
+
 ## Supabase
 
 Needed:

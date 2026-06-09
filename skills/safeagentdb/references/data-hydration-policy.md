@@ -26,9 +26,9 @@ Do not copy production data into preview databases unless the user explicitly ap
 
 ## Branch Creation vs Data Hydration
 
-Supabase branch creation and data hydration are separate concepts.
+Supabase branch creation and data hydration are separate concepts, and the split is forced by the platform: Supabase cannot create a preview branch from another branch project (the API returns `Cannot create preview branch from another branch project`). Preview branches must be created under the production/default project.
 
-A Supabase preview branch may need to be created under the production/default project, while its usable app data can still be hydrated from persistent develop or seed scripts.
+So a Supabase preview branch is created under the production/default project (schema only), while its usable app data is hydrated separately from persistent develop or seed scripts. Do not try to "simplify" this by creating previews from the develop branch — it will fail.
 
 Document both:
 

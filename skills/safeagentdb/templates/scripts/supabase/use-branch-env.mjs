@@ -99,9 +99,23 @@ function getLocalDetails() {
 
   return {
     SUPABASE_URL: getStatusValue(status, ['API URL', 'api_url', 'api.url']),
-    SUPABASE_ANON_KEY: getStatusValue(status, ['anon key', 'anon_key', 'ANON_KEY']),
-    SUPABASE_SERVICE_ROLE_KEY: getStatusValue(status, ['service_role key', 'service_role_key', 'SERVICE_ROLE_KEY']),
+    SUPABASE_ANON_KEY: getStatusValue(status, ['anon key', 'anon_key', 'ANON_KEY', 'publishable key', 'publishable_key']),
+    SUPABASE_SERVICE_ROLE_KEY: getStatusValue(status, ['service_role key', 'service_role_key', 'SERVICE_ROLE_KEY', 'secret key', 'secret_key']),
   };
+}
+
+// The pre-dev-server step runs before the framework loads env files, so pull
+// the Supabase CLI token out of .env(.local) ourselves if it isn't already set.
+function loadAccessTokenFromEnvFiles() {
+  if (process.env.SUPABASE_ACCESS_TOKEN) return;
+  for (const path of ['.env.local', '.env']) {
+    if (!existsSync(path)) continue;
+    const match = readFileSync(path, 'utf8').match(/^\s*SUPABASE_ACCESS_TOKEN\s*=\s*(.*)$/m);
+    if (match) {
+      process.env.SUPABASE_ACCESS_TOKEN = match[1].trim().replace(/^["']|["']$/g, '');
+      return;
+    }
+  }
 }
 
 function parseEnvFile(content) {
@@ -136,7 +150,8 @@ function main() {
   const mode = process.argv[2] || 'status';
 
   if (mode === 'status') {
-    console.log(existsSync('.env.local') ? readFileSync('.env.local', 'utf8').match(/^NEXT_PUBLIC_SUPABASE_URL=(.*)$/m)?.[1] || '(not set)' : '(not set)');
+    const pattern = new RegExp(`^${config.envKeys.supabaseUrl}=(.*)$`, 'm');
+    console.log(existsSync('.env.local') ? readFileSync('.env.local', 'utf8').match(pattern)?.[1] || '(not set)' : '(not set)');
     return;
   }
 
@@ -150,6 +165,8 @@ function main() {
     console.log(`.env.local now points to local Supabase: ${details.SUPABASE_URL}`);
     return;
   }
+
+  loadAccessTokenFromEnvFiles();
 
   const currentBranch = currentGitBranch();
   const gitBranch = mode === 'develop' ? config.developBranch : mode === 'auto' || mode === 'current' ? currentBranch : (process.argv[3] || mode || currentBranch);

@@ -1,11 +1,7 @@
 {
   "devDependencies": {
-    "@types/node": "latest",
-    "@types/pg": "latest",
-    "pg": "latest",
-    "supabase": "latest",
-    "tsx": "latest",
-    "typescript": "latest",
-    "vercel": "latest"
+    "pg": "^8.20.0",
+    "supabase": "^2.76.9",
+    "vercel": "^53.3.2"
   }
 }

@@ -184,15 +184,22 @@ async function syncAuthConfig(sourceProjectRef, targetProjectRef, gitBranch) {
   console.log(`Synced Auth config to ${targetProjectRef} for ${gitBranch}`);
 }
 
+async function listAllAuthUsers(details) {
+  const users = [];
+  for (let page = 1; ; page += 1) {
+    const data = await requestJson(`${details.SUPABASE_URL}/auth/v1/admin/users?page=${page}&per_page=1000`, {
+      headers: serviceHeaders(details.SUPABASE_SERVICE_ROLE_KEY),
+    });
+    users.push(...(data.users || []));
+    if (!data.users || data.users.length < 1000) return users;
+  }
+}
+
 async function copyAuthUsers(source, target) {
-  if (!config.preview?.copyAuthUsers) return;
+  if (!config.preview?.copyAuthUsers) return null;
   if (!previewPassword) throw new Error('copyAuthUsers is enabled but PREVIEW_USER_PASSWORD is missing.');
-  const sourceUsers = await requestJson(`${source.SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000`, {
-    headers: serviceHeaders(source.SUPABASE_SERVICE_ROLE_KEY),
-  });
-  const targetUsers = await requestJson(`${target.SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000`, {
-    headers: serviceHeaders(target.SUPABASE_SERVICE_ROLE_KEY),
-  });
+  const sourceUsers = { users: await listAllAuthUsers(source) };
+  const targetUsers = { users: await listAllAuthUsers(target) };
   const sourceIds = new Set(sourceUsers.users.map((user) => user.id));
   for (const user of targetUsers.users.filter((user) => !sourceIds.has(user.id))) {
     await fetch(`${target.SUPABASE_URL}/auth/v1/admin/users/${user.id}`, {
@@ -200,9 +207,7 @@ async function copyAuthUsers(source, target) {
       headers: serviceHeaders(target.SUPABASE_SERVICE_ROLE_KEY),
     });
   }
-  const existing = await requestJson(`${target.SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000`, {
-    headers: serviceHeaders(target.SUPABASE_SERVICE_ROLE_KEY),
-  });
+  const existing = { users: await listAllAuthUsers(target) };
   const targetIds = new Set(existing.users.map((user) => user.id));
   let created = 0;
   for (const user of sourceUsers.users.filter((user) => !targetIds.has(user.id))) {
@@ -230,6 +235,7 @@ async function copyAuthUsers(source, target) {
     if (!response.ok) throw new Error(`Could not set preview password for ${user.id}: ${await response.text()}`);
   }
   console.log(`Auth synced: source=${sourceUsers.users.length}, created=${created}`);
+  return { sourceUsers: sourceUsers.users.length, created };
 }
 
 async function columns(client, table) {
@@ -252,7 +258,8 @@ function normalize(value, column) {
 }
 
 async function copyPublicData(sourceDetails, targetDetails) {
-  if (!config.preview?.copyPublicData) return;
+  if (!config.preview?.copyPublicData) return null;
+  const copiedCounts = {};
   const source = new Client({ connectionString: sourceDetails.POSTGRES_URL, ssl: { rejectUnauthorized: false } });
   const target = new Client({ connectionString: targetDetails.POSTGRES_URL, ssl: { rejectUnauthorized: false } });
   await source.connect();
@@ -296,11 +303,13 @@ async function copyPublicData(sourceDetails, targetDetails) {
         );
       }
     }
+    copiedCounts[table] = rows.length;
     console.log(`${table}: copied ${rows.length} rows`);
   }
   await target.query('reset all');
   await source.end();
   await target.end();
+  return copiedCounts;
 }
 
 async function applyPendingMigrations(targetDetails) {
@@ -409,8 +418,32 @@ async function main() {
   const gitBranch = args['git-branch'] || args._[0] || process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME;
   if (!gitBranch) throw new Error('Missing git branch');
   const branchName = args.name || `${previewPrefix}${slugify(gitBranch)}`;
+
+  const persistentPreview = (config.persistentPreviews || []).find((preview) => preview.gitBranch === gitBranch);
+  if (persistentPreview?.siteUrl && !process.env.PREVIEW_SITE_URL) {
+    process.env.PREVIEW_SITE_URL = persistentPreview.siteUrl;
+  }
+
   let branch = findBranch(branchName, gitBranch);
   const createdNow = !branch;
+
+  if (args['dry-run'] === 'true') {
+    const wouldHydrate = createdNow || process.env.FORCE_HYDRATE === 'true';
+    console.log(`Dry run for git branch ${gitBranch}:`);
+    console.log(` - Supabase branch: ${branchName} (${branch ? 'reuse existing' : 'create new'})`);
+    console.log(` - Hydration source: ${sourceBranchName()}`);
+    console.log(` - Would hydrate this run: ${wouldHydrate}`);
+    console.log(` - Copy auth users: ${Boolean(config.preview?.copyAuthUsers && wouldHydrate)}`);
+    console.log(` - Copy public data: ${Boolean(config.preview?.copyPublicData && wouldHydrate)}`);
+    console.log(` - Ensure buckets: ${(config.preview?.storageBuckets || []).map((bucket) => (typeof bucket === 'string' ? bucket : bucket.name)).join(', ') || 'none'}`);
+    console.log(` - Copy storage buckets: ${(config.preview?.copyStorageBuckets || []).join(', ') || 'none'}`);
+    console.log(` - Would set Vercel preview env vars: ${Object.values(envKeys).join(', ')}${process.env.VERCEL_TOKEN ? '' : ' (skipped: VERCEL_TOKEN missing)'}`);
+    console.log(` - Would redeploy Vercel preview for ${gitBranch}`);
+    if (persistentPreview) console.log(` - Persistent preview environment, site URL: ${persistentPreview.siteUrl || '(none)'}`);
+    console.log('No changes were made.');
+    return;
+  }
+
   if (!branch) branch = createBranch(branchName, gitBranch);
   await waitForBranch(branchName);
 
@@ -423,9 +456,11 @@ async function main() {
   await applyPendingMigrations(target);
 
   const shouldHydrate = createdNow || process.env.FORCE_HYDRATE === 'true';
+  let authCounts = null;
+  let tableCounts = null;
   if (shouldHydrate) {
-    await copyAuthUsers(source, target);
-    await copyPublicData(source, target);
+    authCounts = await copyAuthUsers(source, target);
+    tableCounts = await copyPublicData(source, target);
   } else {
     console.log('Preview branch already exists; preserving existing data. Set FORCE_HYDRATE=true to recopy source data.');
   }
@@ -437,6 +472,12 @@ async function main() {
   setVercelEnv(envKeys.supabaseServiceRoleKey, target.SUPABASE_SERVICE_ROLE_KEY, gitBranch);
   await redeployVercelPreview(gitBranch);
 
+  const authLine = authCounts
+    ? `Copied auth users: \`${authCounts.created} created, ${authCounts.sourceUsers} in source\``
+    : `Copied auth users: \`${Boolean(config.preview?.copyAuthUsers && shouldHydrate)}\``;
+  const tableLines = tableCounts && Object.keys(tableCounts).length
+    ? `\nCopied table row counts:\n\n${Object.entries(tableCounts).map(([table, count]) => `- \`${table}\`: ${count}`).join('\n')}\n`
+    : '';
   const summary = `# Preview Supabase Branch
 
 Git branch: \`${gitBranch}\`
@@ -444,11 +485,11 @@ Supabase branch: \`${branchName}\`
 Project ref: \`${branchRefFromUrl(target.SUPABASE_URL)}\`
 Hydration source: \`${sourceBranchName()}\`
 Hydrated this run: \`${shouldHydrate}\`
-Copied auth users: \`${Boolean(config.preview?.copyAuthUsers && shouldHydrate)}\`
+${authLine}
 Copied public data: \`${Boolean(config.preview?.copyPublicData && shouldHydrate)}\`
 Copied storage buckets: \`${(config.preview?.copyStorageBuckets || []).join(', ') || 'none'}\`
-
-Google OAuth callback if needed:
+${tableLines}
+OAuth callback URL for this branch (add to your OAuth provider if third-party login is needed):
 
 \`\`\`text
 ${target.SUPABASE_URL}/auth/v1/callback

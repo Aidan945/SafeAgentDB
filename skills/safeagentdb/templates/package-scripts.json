@@ -1,16 +1,19 @@
 {
   "scripts": {
-    "dev": "tsx scripts/supabase/use-branch-env.ts auto && next dev",
-    "dev:local": "tsx scripts/supabase/use-branch-env.ts local && next dev",
-    "env:preview": "tsx scripts/supabase/use-branch-env.ts",
-    "env:develop": "tsx scripts/supabase/use-branch-env.ts develop",
-    "env:local": "tsx scripts/supabase/use-branch-env.ts local",
-    "env:status": "tsx scripts/supabase/use-branch-env.ts status",
-    "preview:provision": "tsx scripts/supabase/provision-preview-branch.ts",
-    "preview:cleanup": "tsx scripts/supabase/cleanup-preview-branch.ts",
-    "preview:cleanup-orphans": "tsx scripts/supabase/cleanup-orphan-preview-branches.ts",
-    "migrations:apply": "tsx scripts/supabase/apply-migrations.ts",
-    "migrations:check": "tsx scripts/ci/check-migrations.ts",
+    "dev": "node scripts/supabase/use-branch-env.mjs auto && next dev",
+    "dev:local": "node scripts/supabase/use-branch-env.mjs local && next dev",
+    "env:preview": "node scripts/supabase/use-branch-env.mjs",
+    "env:develop": "node scripts/supabase/use-branch-env.mjs develop",
+    "env:local": "node scripts/supabase/use-branch-env.mjs local",
+    "env:status": "node scripts/supabase/use-branch-env.mjs status",
+    "preview:provision": "node scripts/supabase/provision-preview-branch.mjs",
+    "preview:cleanup": "node scripts/supabase/cleanup-preview-branch.mjs",
+    "preview:cleanup-orphans": "node scripts/supabase/cleanup-orphan-preview-branches.mjs",
+    "migrations:apply": "node scripts/supabase/apply-migrations.mjs",
+    "migrations:check": "node scripts/ci/check-migrations.mjs",
+    "db:pull": "supabase db pull && npm run db:types",
+    "db:push": "supabase db push",
+    "db:diff": "supabase db diff",
     "db:types": "supabase gen types typescript --local > src/types/supabase-generated.ts"
   }
 }
