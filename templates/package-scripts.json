@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "dev": "node scripts/supabase/use-branch-env.mjs auto && next dev",
+    "dev:local": "node scripts/supabase/use-branch-env.mjs local && next dev",
+    "env:preview": "node scripts/supabase/use-branch-env.mjs",
+    "env:develop": "node scripts/supabase/use-branch-env.mjs develop",
+    "env:local": "node scripts/supabase/use-branch-env.mjs local",
+    "env:status": "node scripts/supabase/use-branch-env.mjs status",
+    "preview:provision": "node scripts/supabase/provision-preview-branch.mjs",
+    "preview:cleanup": "node scripts/supabase/cleanup-preview-branch.mjs",
+    "preview:cleanup-orphans": "node scripts/supabase/cleanup-orphan-preview-branches.mjs",
+    "migrations:apply": "node scripts/supabase/apply-migrations.mjs",
+    "migrations:check": "node scripts/ci/check-migrations.mjs",
+    "db:types": "supabase gen types typescript --local > src/types/supabase-generated.ts"
+  }
+}

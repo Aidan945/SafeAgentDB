@@ -1,0 +1,147 @@
+name: Preview Supabase Branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Provision or cleanup the preview branch
+        required: true
+        default: provision
+        type: choice
+        options:
+          - provision
+          - cleanup
+      git_branch:
+        description: Git branch to provision/cleanup
+        required: true
+        type: string
+      force_hydrate:
+        description: Re-copy configured source data into an existing preview branch
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+  push:
+    branches:
+      - 'agent/**'
+      - 'feature/**'
+  pull_request:
+    branches:
+      - develop
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - closed
+
+env:
+  SUPABASE_CLI_VERSION: 2.76.9
+
+concurrency:
+  group: preview-${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name || inputs.git_branch }}
+  cancel-in-progress: ${{ !(github.event_name == 'pull_request' && github.event.action == 'closed') }}
+
+jobs:
+  provision:
+    if: >-
+      (github.event_name == 'push') ||
+      (github.event_name == 'pull_request' && github.event.action != 'closed') ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'provision')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Provision and hydrate Supabase preview branch
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PARENT_PROJECT_REF: ${{ secrets.SUPABASE_PARENT_PROJECT_REF }}
+          SUPABASE_DEVELOP_BRANCH_REF: ${{ secrets.SUPABASE_DEVELOP_BRANCH_REF }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_SCOPE: ${{ secrets.VERCEL_SCOPE }}
+          PREVIEW_USER_PASSWORD: ${{ secrets.PREVIEW_USER_PASSWORD }}
+          FORCE_HYDRATE: ${{ inputs.force_hydrate || 'false' }}
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BRANCH="${{ github.head_ref }}"
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BRANCH="${{ inputs.git_branch }}"
+          fi
+          npm run preview:provision -- "$BRANCH"
+
+      - name: Upload preview summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-branch-summary
+          path: preview-branch-summary.md
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('preview-branch-summary.md', 'utf8');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+  cleanup:
+    if: >-
+      (github.event_name == 'pull_request' && github.event.action == 'closed') ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'cleanup')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cleanup Supabase preview branch
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PARENT_PROJECT_REF: ${{ secrets.SUPABASE_PARENT_PROJECT_REF }}
+          SUPABASE_DEVELOP_BRANCH_REF: ${{ secrets.SUPABASE_DEVELOP_BRANCH_REF }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_SCOPE: ${{ secrets.VERCEL_SCOPE }}
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BRANCH="${{ github.head_ref }}"
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BRANCH="${{ inputs.git_branch }}"
+          fi
+          npm run preview:cleanup -- "$BRANCH"

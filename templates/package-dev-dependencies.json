@@ -1,0 +1,7 @@
+{
+  "devDependencies": {
+    "pg": "latest",
+    "supabase": "latest",
+    "vercel": "latest"
+  }
+}

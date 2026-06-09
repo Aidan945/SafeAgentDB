@@ -1,0 +1,112 @@
+name: Supabase Migrations
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'supabase/migrations/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'supabase/migrations/**'
+  workflow_dispatch:
+
+env:
+  SUPABASE_CLI_VERSION: 2.76.9
+  SUPABASE_DEVELOP_BRANCH_NAME: develop
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    name: Validate Migrations
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check migration safety
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          CHANGED="$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD -- 'supabase/migrations/*.sql' | tr '\n' ' ')"
+          npm run migrations:check -- --changed "$CHANGED"
+
+      - name: Link to production for main-targeted PR
+        if: github.base_ref == 'main'
+        run: supabase link --project-ref "${{ secrets.SUPABASE_PROD_PROJECT_REF }}"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Validate production migrations
+        if: github.base_ref == 'main'
+        run: supabase db push --dry-run
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Validate develop migrations
+        if: github.base_ref == 'develop'
+        run: node scripts/supabase/apply-migrations.mjs "$SUPABASE_DEVELOP_BRANCH_NAME" dry-run
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PARENT_PROJECT_REF: ${{ secrets.SUPABASE_PARENT_PROJECT_REF }}
+
+  deploy-develop:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    name: Deploy Migrations to Develop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Push migrations to persistent develop branch
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PARENT_PROJECT_REF: ${{ secrets.SUPABASE_PARENT_PROJECT_REF }}
+        run: node scripts/supabase/apply-migrations.mjs "$SUPABASE_DEVELOP_BRANCH_NAME"
+
+  deploy-production:
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    name: Deploy Migrations to Production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Push migrations to production
+        run: |
+          supabase link --project-ref "${{ secrets.SUPABASE_PROD_PROJECT_REF }}"
+          supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
