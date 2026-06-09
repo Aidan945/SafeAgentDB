@@ -25,8 +25,8 @@ Typical package scripts:
 
 ```json
 {
-  "dev:local": "node scripts/supabase/use-branch-env.mjs local && next dev",
-  "env:local": "node scripts/supabase/use-branch-env.mjs local"
+  "dev:local": "tsx scripts/supabase/use-branch-env.ts local && next dev",
+  "env:local": "tsx scripts/supabase/use-branch-env.ts local"
 }
 ```
 

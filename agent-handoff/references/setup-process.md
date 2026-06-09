@@ -55,8 +55,8 @@ Do not invent schema. Do not tell the user to paste SQL manually into the dashbo
 
 1. Copy `templates/branching-config.example.json` to `branching-config.json`.
 2. Fill in project-specific refs, branch names, Vercel IDs, env var names, and hydration policy.
-3. Copy `templates/scripts/supabase/*.mjs` to `scripts/supabase/`.
-4. Copy `templates/scripts/ci/*.mjs` to `scripts/ci/`.
+3. Copy `templates/scripts/supabase/*.ts` to `scripts/supabase/`.
+4. Copy `templates/scripts/ci/*.ts` to `scripts/ci/`.
 5. Merge `templates/package-scripts.json` into `package.json`.
 6. Ensure required dev dependencies from `templates/package-dev-dependencies.json` are installed or already available.
 7. Copy workflow templates into `.github/workflows/`.
