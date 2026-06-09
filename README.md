@@ -35,16 +35,10 @@ After installing, start your agent in the project where you want SafeAgentDB ins
 ```text
 Use the safeagentdb skill.
 
-I want to build SafeAgentDB-style database safety infrastructure into this software platform.
-
-First inspect my current project. Determine my framework, database, deployment platform, CI system, migration setup, environment variable setup, and branch model.
-
-If my project uses Supabase, Vercel, and GitHub Actions, use the SafeAgentDB skill templates to set up safe local, develop, preview, and production database workflows.
-
-If my project uses a different stack, do not blindly copy the templates. Use SafeAgentDB as a conceptual model, explain what needs to be adapted, and work with me to design the equivalent setup for my infrastructure.
-
-Before making infrastructure changes, explain what credentials and permissions you need, why you need them, and where they will be stored. Do not commit secrets.
+Inspect this project, then set up SafeAgentDB database safety infrastructure for it. Review your plan with me before making changes.
 ```
+
+The skill handles the rest: inspecting your stack, adapting to non-default setups, asking before touching credentials, and never committing secrets.
 
 ## What SafeAgentDB Enables
 
