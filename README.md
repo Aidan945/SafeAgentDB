@@ -1,5 +1,7 @@
 # SafeAgentDB
 
+[![skills.sh](https://skills.sh/b/aidan945/safeagentdb)](https://www.skills.sh/aidan945/safeagentdb/safeagentdb)
+
 Database safety infrastructure for AFK agentic development.
 
 SafeAgentDB is built for serious vibe coders shipping real products with a team — whether your teammates are people, AI agents, or both. Once you have many branches in flight at the same time, one shared database becomes the thing everyone breaks. SafeAgentDB gives every branch and PR a live preview URL backed by its own isolated database, so agents can run migrations, hydrate realistic data, and test real app behavior without risking production, corrupting shared development data, or stepping on each other.
@@ -8,7 +10,7 @@ Built first for **Supabase + Vercel + GitHub Actions**, with guidance for adapti
 
 ## Install The Skill
 
-Install SafeAgentDB with the open `skills` CLI:
+SafeAgentDB is listed on [skills.sh](https://www.skills.sh/aidan945/safeagentdb/safeagentdb), the open agent skills directory. Install it with the `skills` CLI:
 
 ```bash
 npx skills add https://github.com/Aidan945/SafeAgentDB --skill safeagentdb
