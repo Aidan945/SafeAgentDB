@@ -1,22 +1,28 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import process from 'node:process';
 
-function parseArgs(argv) {
-  const args = { _: [] };
+interface ParsedArgs {
+  positional: string[];
+  flags: Record<string, string>;
+}
+
+function parseArgs(argv: string[]): ParsedArgs {
+  const args: ParsedArgs = { positional: [], flags: {} };
   for (let i = 2; i < argv.length; i += 1) {
     const part = argv[i];
     if (!part.startsWith('--')) {
-      args._.push(part);
+      args.positional.push(part);
       continue;
     }
     const key = part.slice(2);
-    args[key] = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : 'true';
+    args.flags[key] = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : 'true';
   }
   return args;
 }
 
-function checkDuplicateTimestamps() {
+function checkDuplicateTimestamps(): void {
   const files = readdirSync('supabase/migrations').filter((file) => file.endsWith('.sql'));
-  const byTimestamp = new Map();
+  const byTimestamp = new Map<string, string[]>();
 
   for (const file of files) {
     const timestamp = file.split('_')[0];
@@ -31,21 +37,21 @@ function checkDuplicateTimestamps() {
   }
 }
 
-function changedMigrationFiles(raw) {
+function changedMigrationFiles(raw: string | undefined): string[] {
   return String(raw || '')
     .split(/\s+/)
     .map((file) => file.trim())
     .filter((file) => file.startsWith('supabase/migrations/') && file.endsWith('.sql'));
 }
 
-function checkDestructiveSql(files, labels) {
+function checkDestructiveSql(files: string[], labels: string): void {
   if (files.length === 0) return;
   if (labels.split(',').map((label) => label.trim()).includes('migration-reviewed')) {
     console.log('Destructive migration scan bypassed by migration-reviewed label.');
     return;
   }
 
-  const patterns = [
+  const patterns: RegExp[] = [
     /\bdrop\s+table\b/i,
     /\bdrop\s+column\b/i,
     /\btruncate\b/i,
@@ -54,7 +60,7 @@ function checkDestructiveSql(files, labels) {
     /\balter\s+table\b[\s\S]*\balter\s+column\b[\s\S]*\bset\s+not\s+null\b/i,
   ];
 
-  const findings = [];
+  const findings: string[] = [];
   for (const file of files) {
     const sql = readFileSync(file, 'utf8');
     for (const pattern of patterns) {
@@ -74,9 +80,9 @@ function checkDestructiveSql(files, labels) {
 try {
   const args = parseArgs(process.argv);
   checkDuplicateTimestamps();
-  checkDestructiveSql(changedMigrationFiles(args.changed), process.env.PR_LABELS || '');
+  checkDestructiveSql(changedMigrationFiles(args.flags.changed), process.env.PR_LABELS || '');
   console.log('Migration checks passed.');
 } catch (error) {
-  console.error(error.message || error);
+  console.error(error instanceof Error ? error.message : error);
   process.exit(1);
 }

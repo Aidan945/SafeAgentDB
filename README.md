@@ -1,6 +1,6 @@
 # SafeAgentDB
 
-[![skills.sh](https://skills.sh/b/aidan945/safeagentdb)](https://www.skills.sh/aidan945/safeagentdb/safeagentdb)
+[![skills.sh](https://skills.sh/b/aidan945/safeagentdb)](https://www.skills.sh/aidan945/safeagentdb/safeagentdb) [![ClawHub](https://img.shields.io/badge/%F0%9F%A6%9E_ClawHub-safeagentdb-E0492F)](https://clawhub.ai/skills/safeagentdb)
 
 Database safety infrastructure for AFK agentic development.
 

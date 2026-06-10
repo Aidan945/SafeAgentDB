@@ -3,8 +3,104 @@ import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 import { Client } from 'pg';
 
+interface BucketConfig {
+  name: string;
+  public?: boolean;
+  fileSizeLimit?: number;
+}
+
+interface PersistentPreview {
+  gitBranch: string;
+  siteUrl?: string;
+}
+
+interface PreviewConfig {
+  namePrefix?: string;
+  redirectWildcard?: string;
+  syncAuthConfig?: boolean;
+  hydrateFromDevelop?: boolean;
+  copyAuthUsers?: boolean;
+  copyPublicData?: boolean;
+  includePublicTables?: string[];
+  excludePublicTables?: string[];
+  storageBuckets?: Array<string | BucketConfig>;
+  copyStorageBuckets?: string[];
+}
+
+interface BranchingConfig {
+  supabase?: {
+    parentProjectRef?: string;
+    developBranchName?: string;
+    developBranchRef?: string;
+    schemaBranchCreateSource?: string;
+    developHydrationSource?: string;
+    previewHydrationSource?: string;
+  };
+  vercel?: {
+    scope?: string;
+    projectId?: string;
+    projectName?: string;
+  };
+  envKeys?: {
+    supabaseUrl?: string;
+    supabaseAnonKey?: string;
+    supabaseServiceRoleKey?: string;
+  };
+  preview?: PreviewConfig;
+  persistentPreviews?: PersistentPreview[];
+}
+
+interface SupabaseBranch {
+  name: string;
+  git_branch?: string | null;
+  status?: string;
+  is_default?: boolean;
+}
+
+interface BranchDetails {
+  SUPABASE_URL: string;
+  SUPABASE_ANON_KEY: string;
+  SUPABASE_SERVICE_ROLE_KEY: string;
+  POSTGRES_URL: string;
+}
+
+interface AuthUser {
+  id: string;
+  email?: string;
+  user_metadata?: Record<string, unknown>;
+  app_metadata?: Record<string, unknown>;
+}
+
+interface AuthUsersPage {
+  users?: AuthUser[];
+}
+
+interface AuthConfig {
+  site_url?: string;
+  uri_allow_list?: string;
+  external_email_enabled?: boolean;
+  external_google_enabled?: boolean;
+  external_google_client_id?: string;
+  external_google_secret?: string;
+  external_google_skip_nonce_check?: boolean;
+  external_google_email_optional?: boolean;
+}
+
+interface ColumnInfo {
+  name: string;
+  dataType: string;
+  udtName: string;
+}
+
+interface ParsedArgs {
+  positional: string[];
+  flags: Record<string, string>;
+}
+
 const CONFIG_PATH = process.env.BRANCHING_CONFIG_PATH || 'branching-config.json';
-const config = existsSync(CONFIG_PATH) ? JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) : {};
+const config: BranchingConfig = existsSync(CONFIG_PATH)
+  ? (JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) as BranchingConfig)
+  : {};
 
 const parentProjectRef = process.env.SUPABASE_PARENT_PROJECT_REF || config.supabase?.parentProjectRef;
 const developBranchName = process.env.SUPABASE_DEVELOP_BRANCH_NAME || config.supabase?.developBranchName || 'develop';
@@ -22,28 +118,33 @@ const vercel = {
   projectName: process.env.VERCEL_PROJECT_NAME || config.vercel?.projectName,
 };
 
-const qident = (value) => `"${String(value).replace(/"/g, '""')}"`;
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const qident = (value: string): string => `"${String(value).replace(/"/g, '""')}"`;
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-function parseArgs(argv) {
-  const args = { _: [] };
+function parseArgs(argv: string[]): ParsedArgs {
+  const args: ParsedArgs = { positional: [], flags: {} };
   for (let i = 2; i < argv.length; i += 1) {
     const part = argv[i];
     if (!part.startsWith('--')) {
-      args._.push(part);
+      args.positional.push(part);
       continue;
     }
     const key = part.slice(2);
-    args[key] = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : 'true';
+    args.flags[key] = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : 'true';
   }
   return args;
 }
 
-function slugify(value) {
+function slugify(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 45);
 }
 
-function run(command, args, options = {}) {
+interface RunOptions {
+  stdio?: 'inherit';
+  timeout?: number;
+}
+
+function run(command: string, args: string[], options: RunOptions = {}): string {
   const result = spawnSync(command, args, {
     encoding: 'utf8',
     shell: process.platform === 'win32',
@@ -56,17 +157,17 @@ function run(command, args, options = {}) {
   return result.stdout || '';
 }
 
-function npx(args, options = {}) {
+function npx(args: string[], options: RunOptions = {}): string {
   return run(process.platform === 'win32' ? 'npx.cmd' : 'npx', args, options);
 }
 
-function supabase(args) {
+function supabase(args: string[]): string {
   return npx(['supabase', ...args]);
 }
 
 let vercelLinked = false;
 
-function ensureVercelLinked() {
+function ensureVercelLinked(): void {
   if (vercelLinked || !process.env.VERCEL_TOKEN || !vercel.projectName) return;
   const args = ['vercel', 'link', '--yes', '--project', vercel.projectName];
   if (vercel.scope) args.push('--scope', vercel.scope);
@@ -74,48 +175,48 @@ function ensureVercelLinked() {
   vercelLinked = true;
 }
 
-function jsonObject(output) {
+function jsonObject<T>(output: string): T {
   const first = output.indexOf('{');
   const last = output.lastIndexOf('}');
   if (first === -1 || last <= first) throw new Error(`Could not parse JSON:\n${output}`);
-  return JSON.parse(output.slice(first, last + 1));
+  return JSON.parse(output.slice(first, last + 1)) as T;
 }
 
-function jsonArray(output) {
+function jsonArray<T>(output: string): T[] {
   const first = output.indexOf('[');
   const last = output.lastIndexOf(']');
   if (first === -1 || last <= first) return [];
-  return JSON.parse(output.slice(first, last + 1));
+  return JSON.parse(output.slice(first, last + 1)) as T[];
 }
 
-function listBranches(projectRef = parentProjectRef) {
-  return jsonArray(supabase(['branches', 'list', '--project-ref', projectRef, '-o', 'json']));
+function listBranches(projectRef = parentProjectRef): SupabaseBranch[] {
+  return jsonArray<SupabaseBranch>(supabase(['branches', 'list', '--project-ref', String(projectRef), '-o', 'json']));
 }
 
-function getBranchDetails(name, projectRef = parentProjectRef) {
-  return jsonObject(supabase(['branches', 'get', name, '--project-ref', projectRef, '-o', 'json']));
+function getBranchDetails(name: string, projectRef = parentProjectRef): BranchDetails {
+  return jsonObject<BranchDetails>(supabase(['branches', 'get', name, '--project-ref', String(projectRef), '-o', 'json']));
 }
 
-function branchRefFromUrl(url) {
+function branchRefFromUrl(url: string): string {
   return url.replace('https://', '').replace('.supabase.co', '');
 }
 
-function findBranch(name, gitBranch) {
+function findBranch(name: string, gitBranch: string): SupabaseBranch | undefined {
   return listBranches().find((branch) => branch.name === name || branch.git_branch === gitBranch);
 }
 
-function createBranch(name, gitBranch) {
+function createBranch(name: string, gitBranch: string): SupabaseBranch {
   console.log(`Creating Supabase preview branch ${name} for ${gitBranch}`);
-  const created = jsonObject(supabase(['branches', 'create', name, '--project-ref', parentProjectRef, '-o', 'json']));
-  supabase(['branches', 'update', name, '--project-ref', parentProjectRef, '--git-branch', gitBranch, '-o', 'json']);
+  const created = jsonObject<SupabaseBranch>(supabase(['branches', 'create', name, '--project-ref', String(parentProjectRef), '-o', 'json']));
+  supabase(['branches', 'update', name, '--project-ref', String(parentProjectRef), '--git-branch', gitBranch, '-o', 'json']);
   return created;
 }
 
-async function waitForBranch(name) {
+async function waitForBranch(name: string): Promise<void> {
   const ready = new Set(['ACTIVE_HEALTHY', 'FUNCTIONS_DEPLOYED', 'MIGRATIONS_PASSED']);
   for (let i = 0; i < 60; i += 1) {
     const branch = listBranches().find((candidate) => candidate.name === name);
-    if (branch && ready.has(branch.status)) {
+    if (branch?.status && ready.has(branch.status)) {
       console.log(`Supabase branch ${name} ready: ${branch.status}`);
       return;
     }
@@ -125,18 +226,18 @@ async function waitForBranch(name) {
   throw new Error(`Timed out waiting for ${name}`);
 }
 
-function serviceHeaders(key, contentType = 'application/json') {
+function serviceHeaders(key: string, contentType = 'application/json'): Record<string, string> {
   return { authorization: `Bearer ${key}`, apikey: key, 'content-type': contentType };
 }
 
-async function requestJson(url, options = {}) {
+async function requestJson<T>(url: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(url, options);
   const text = await response.text();
   if (!response.ok) throw new Error(`${options.method || 'GET'} ${url} failed ${response.status}: ${text}`);
-  return text ? JSON.parse(text) : null;
+  return (text ? JSON.parse(text) : null) as T;
 }
 
-async function ensureBucket(details, bucket) {
+async function ensureBucket(details: BranchDetails, bucket: BucketConfig): Promise<void> {
   const response = await fetch(`${details.SUPABASE_URL}/storage/v1/bucket`, {
     method: 'POST',
     headers: serviceHeaders(details.SUPABASE_SERVICE_ROLE_KEY),
@@ -153,11 +254,11 @@ async function ensureBucket(details, bucket) {
   }
 }
 
-async function syncAuthConfig(sourceProjectRef, targetProjectRef, gitBranch) {
+async function syncAuthConfig(sourceProjectRef: string | undefined, targetProjectRef: string, gitBranch: string): Promise<void> {
   if (!config.preview?.syncAuthConfig) return;
   if (!sourceProjectRef) throw new Error('syncAuthConfig is enabled but no source project ref was configured.');
   const headers = { authorization: `Bearer ${process.env.SUPABASE_ACCESS_TOKEN}`, 'content-type': 'application/json' };
-  const source = await requestJson(`https://api.supabase.com/v1/projects/${sourceProjectRef}/config/auth`, { headers });
+  const source = await requestJson<AuthConfig>(`https://api.supabase.com/v1/projects/${sourceProjectRef}/config/auth`, { headers });
   const previewUrl = process.env.PREVIEW_SITE_URL || '';
   const allowList = [
     ...String(source.uri_allow_list || '').split(',').map((url) => url.trim()).filter(Boolean),
@@ -166,7 +267,7 @@ async function syncAuthConfig(sourceProjectRef, targetProjectRef, gitBranch) {
     previewUrl && `${previewUrl.replace(/\/$/, '')}/dashboard`,
     previewUrl && `${previewUrl.replace(/\/$/, '')}/reset-password`,
     process.env.PREVIEW_REDIRECT_WILDCARD || config.preview?.redirectWildcard,
-  ].filter(Boolean);
+  ].filter((entry): entry is string => Boolean(entry));
   await requestJson(`https://api.supabase.com/v1/projects/${targetProjectRef}/config/auth`, {
     method: 'PATCH',
     headers,
@@ -184,10 +285,10 @@ async function syncAuthConfig(sourceProjectRef, targetProjectRef, gitBranch) {
   console.log(`Synced Auth config to ${targetProjectRef} for ${gitBranch}`);
 }
 
-async function listAllAuthUsers(details) {
-  const users = [];
+async function listAllAuthUsers(details: BranchDetails): Promise<AuthUser[]> {
+  const users: AuthUser[] = [];
   for (let page = 1; ; page += 1) {
-    const data = await requestJson(`${details.SUPABASE_URL}/auth/v1/admin/users?page=${page}&per_page=1000`, {
+    const data = await requestJson<AuthUsersPage>(`${details.SUPABASE_URL}/auth/v1/admin/users?page=${page}&per_page=1000`, {
       headers: serviceHeaders(details.SUPABASE_SERVICE_ROLE_KEY),
     });
     users.push(...(data.users || []));
@@ -195,22 +296,27 @@ async function listAllAuthUsers(details) {
   }
 }
 
-async function copyAuthUsers(source, target) {
+interface AuthCopyCounts {
+  sourceUsers: number;
+  created: number;
+}
+
+async function copyAuthUsers(source: BranchDetails, target: BranchDetails): Promise<AuthCopyCounts | null> {
   if (!config.preview?.copyAuthUsers) return null;
   if (!previewPassword) throw new Error('copyAuthUsers is enabled but PREVIEW_USER_PASSWORD is missing.');
-  const sourceUsers = { users: await listAllAuthUsers(source) };
-  const targetUsers = { users: await listAllAuthUsers(target) };
-  const sourceIds = new Set(sourceUsers.users.map((user) => user.id));
-  for (const user of targetUsers.users.filter((user) => !sourceIds.has(user.id))) {
+  const sourceUsers = await listAllAuthUsers(source);
+  const targetUsers = await listAllAuthUsers(target);
+  const sourceIds = new Set(sourceUsers.map((user) => user.id));
+  for (const user of targetUsers.filter((user) => !sourceIds.has(user.id))) {
     await fetch(`${target.SUPABASE_URL}/auth/v1/admin/users/${user.id}`, {
       method: 'DELETE',
       headers: serviceHeaders(target.SUPABASE_SERVICE_ROLE_KEY),
     });
   }
-  const existing = { users: await listAllAuthUsers(target) };
-  const targetIds = new Set(existing.users.map((user) => user.id));
+  const existing = await listAllAuthUsers(target);
+  const targetIds = new Set(existing.map((user) => user.id));
   let created = 0;
-  for (const user of sourceUsers.users.filter((user) => !targetIds.has(user.id))) {
+  for (const user of sourceUsers.filter((user) => !targetIds.has(user.id))) {
     const response = await fetch(`${target.SUPABASE_URL}/auth/v1/admin/users`, {
       method: 'POST',
       headers: serviceHeaders(target.SUPABASE_SERVICE_ROLE_KEY),
@@ -226,7 +332,7 @@ async function copyAuthUsers(source, target) {
     if (!response.ok) throw new Error(`Could not create auth user ${user.id}: ${await response.text()}`);
     created += 1;
   }
-  for (const user of sourceUsers.users) {
+  for (const user of sourceUsers) {
     const response = await fetch(`${target.SUPABASE_URL}/auth/v1/admin/users/${user.id}`, {
       method: 'PUT',
       headers: serviceHeaders(target.SUPABASE_SERVICE_ROLE_KEY),
@@ -234,11 +340,11 @@ async function copyAuthUsers(source, target) {
     });
     if (!response.ok) throw new Error(`Could not set preview password for ${user.id}: ${await response.text()}`);
   }
-  console.log(`Auth synced: source=${sourceUsers.users.length}, created=${created}`);
-  return { sourceUsers: sourceUsers.users.length, created };
+  console.log(`Auth synced: source=${sourceUsers.length}, created=${created}`);
+  return { sourceUsers: sourceUsers.length, created };
 }
 
-async function columns(client, table) {
+async function columns(client: Client, table: string): Promise<ColumnInfo[]> {
   const { rows } = await client.query(
     `select column_name, data_type, udt_name
        from information_schema.columns
@@ -248,18 +354,22 @@ async function columns(client, table) {
       order by ordinal_position`,
     [table],
   );
-  return rows.map((row) => ({ name: row.column_name, dataType: row.data_type, udtName: row.udt_name }));
+  return (rows as Array<{ column_name: string; data_type: string; udt_name: string }>).map((row) => ({
+    name: row.column_name,
+    dataType: row.data_type,
+    udtName: row.udt_name,
+  }));
 }
 
-function normalize(value, column) {
+function normalize(value: unknown, column: ColumnInfo): unknown {
   if (value === undefined || value === null) return null;
   const isJson = ['json', 'jsonb'].includes(column.dataType) || ['json', 'jsonb'].includes(column.udtName);
   return isJson && typeof value !== 'string' ? JSON.stringify(value) : value;
 }
 
-async function copyPublicData(sourceDetails, targetDetails) {
+async function copyPublicData(sourceDetails: BranchDetails, targetDetails: BranchDetails): Promise<Record<string, number> | null> {
   if (!config.preview?.copyPublicData) return null;
-  const copiedCounts = {};
+  const copiedCounts: Record<string, number> = {};
   const source = new Client({ connectionString: sourceDetails.POSTGRES_URL, ssl: { rejectUnauthorized: false } });
   const target = new Client({ connectionString: targetDetails.POSTGRES_URL, ssl: { rejectUnauthorized: false } });
   await source.connect();
@@ -268,12 +378,14 @@ async function copyPublicData(sourceDetails, targetDetails) {
   await target.query('set role postgres');
   const excluded = new Set(config.preview?.excludePublicTables || []);
   const include = new Set(config.preview?.includePublicTables || []);
-  const sourceTables = new Set((await source.query(
-    `select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE'`,
-  )).rows.map((row) => row.table_name));
-  const tables = (await target.query(
+  const sourceTables = new Set(
+    ((await source.query(
+      `select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE'`,
+    )).rows as Array<{ table_name: string }>).map((row) => row.table_name),
+  );
+  const tables = ((await target.query(
     `select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE' order by table_name`,
-  )).rows
+  )).rows as Array<{ table_name: string }>)
     .map((row) => row.table_name)
     .filter((table) => sourceTables.has(table))
     .filter((table) => include.size === 0 || include.has(table))
@@ -288,10 +400,10 @@ async function copyPublicData(sourceDetails, targetDetails) {
     const sourceColumns = new Set((await columns(source, table)).map((column) => column.name));
     const shared = (await columns(target, table)).filter((column) => sourceColumns.has(column.name));
     if (!shared.length) continue;
-    const rows = (await source.query(`select ${shared.map((column) => qident(column.name)).join(', ')} from public.${qident(table)}`)).rows;
+    const rows = (await source.query(`select ${shared.map((column) => qident(column.name)).join(', ')} from public.${qident(table)}`)).rows as Array<Record<string, unknown>>;
     for (let start = 0; start < rows.length; start += 250) {
       const batch = rows.slice(start, start + 250);
-      const values = [];
+      const values: unknown[] = [];
       const tuples = batch.map((row, rowIndex) => `(${shared.map((column, columnIndex) => {
         values.push(normalize(row[column.name], column));
         return `$${rowIndex * shared.length + columnIndex + 1}`;
@@ -312,12 +424,12 @@ async function copyPublicData(sourceDetails, targetDetails) {
   return copiedCounts;
 }
 
-async function applyPendingMigrations(targetDetails) {
+async function applyPendingMigrations(targetDetails: BranchDetails): Promise<void> {
   const client = new Client({ connectionString: targetDetails.POSTGRES_URL, ssl: { rejectUnauthorized: false } });
   await client.connect();
   await client.query('set role postgres');
   const { rows } = await client.query('select version from supabase_migrations.schema_migrations');
-  const applied = new Set(rows.map((row) => row.version));
+  const applied = new Set((rows as Array<{ version: string }>).map((row) => row.version));
   const files = readdirSync('supabase/migrations').filter((file) => file.endsWith('.sql')).sort();
   for (const file of files) {
     const match = file.match(/^(\d+)_(.+)\.sql$/);
@@ -340,17 +452,17 @@ async function applyPendingMigrations(targetDetails) {
   await client.end();
 }
 
-function objectPath(bucket, path) {
+function objectPath(bucket: string, path: string): string {
   return `${bucket}/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
 
-async function copyStorageBucket(source, target, bucketName) {
+async function copyStorageBucket(source: BranchDetails, target: BranchDetails, bucketName: string): Promise<void> {
   const client = new Client({ connectionString: source.POSTGRES_URL, ssl: { rejectUnauthorized: false } });
   await client.connect();
   await client.query('set role postgres');
   const { rows } = await client.query('select name from storage.objects where bucket_id=$1 order by name', [bucketName]);
   await client.end();
-  for (const { name } of rows) {
+  for (const { name } of rows as Array<{ name: string }>) {
     const from = await fetch(`${source.SUPABASE_URL}/storage/v1/object/${objectPath(bucketName, name)}`, {
       headers: serviceHeaders(source.SUPABASE_SERVICE_ROLE_KEY),
     });
@@ -366,7 +478,7 @@ async function copyStorageBucket(source, target, bucketName) {
   console.log(`Copied ${bucketName} objects: ${rows.length}`);
 }
 
-function setVercelEnv(name, value, gitBranch) {
+function setVercelEnv(name: string, value: string, gitBranch: string): void {
   if (!process.env.VERCEL_TOKEN) {
     console.log(`Skipping Vercel env ${name}: VERCEL_TOKEN missing`);
     return;
@@ -377,14 +489,22 @@ function setVercelEnv(name, value, gitBranch) {
   try {
     npx(args, { timeout: 90_000 });
   } catch (error) {
-    if (!String(error.message).includes('Added Environment Variable') && !String(error.message).includes('Overrode Environment Variable')) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes('Added Environment Variable') && !message.includes('Overrode Environment Variable')) {
       throw error;
     }
   }
   console.log(`Set Vercel preview env ${name}`);
 }
 
-async function redeployVercelPreview(gitBranch) {
+interface VercelDeployment {
+  url: string;
+  meta?: {
+    githubCommitRef?: string;
+  };
+}
+
+async function redeployVercelPreview(gitBranch: string): Promise<void> {
   if (!process.env.VERCEL_TOKEN || !vercel.projectId) return;
   ensureVercelLinked();
   const query = new URLSearchParams({ projectId: vercel.projectId, limit: '20' });
@@ -393,7 +513,7 @@ async function redeployVercelPreview(gitBranch) {
     headers: { authorization: `Bearer ${process.env.VERCEL_TOKEN}` },
   });
   if (!response.ok) throw new Error(`Could not list Vercel deployments: ${response.status} ${await response.text()}`);
-  const data = await response.json();
+  const data = (await response.json()) as { deployments?: VercelDeployment[] };
   const deployment = (data.deployments || []).find((item) => item.meta?.githubCommitRef === gitBranch);
   if (!deployment) {
     console.log(`No Vercel deployment found for ${gitBranch}; skipping redeploy`);
@@ -404,20 +524,20 @@ async function redeployVercelPreview(gitBranch) {
   npx(args, { timeout: 90_000, stdio: 'inherit' });
 }
 
-function sourceBranchName() {
+function sourceBranchName(): string {
   if (config.supabase?.previewHydrationSource && config.supabase.previewHydrationSource !== 'develop') {
     return config.supabase.previewHydrationSource;
   }
   return developBranchName;
 }
 
-async function main() {
+async function main(): Promise<void> {
   if (!parentProjectRef) throw new Error('Missing SUPABASE_PARENT_PROJECT_REF or branching-config.json supabase.parentProjectRef.');
   if (!process.env.SUPABASE_ACCESS_TOKEN) throw new Error('Missing SUPABASE_ACCESS_TOKEN');
   const args = parseArgs(process.argv);
-  const gitBranch = args['git-branch'] || args._[0] || process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME;
+  const gitBranch = args.flags['git-branch'] || args.positional[0] || process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME;
   if (!gitBranch) throw new Error('Missing git branch');
-  const branchName = args.name || `${previewPrefix}${slugify(gitBranch)}`;
+  const branchName = args.flags.name || `${previewPrefix}${slugify(gitBranch)}`;
 
   const persistentPreview = (config.persistentPreviews || []).find((preview) => preview.gitBranch === gitBranch);
   if (persistentPreview?.siteUrl && !process.env.PREVIEW_SITE_URL) {
@@ -427,7 +547,7 @@ async function main() {
   let branch = findBranch(branchName, gitBranch);
   const createdNow = !branch;
 
-  if (args['dry-run'] === 'true') {
+  if (args.flags['dry-run'] === 'true') {
     const wouldHydrate = createdNow || process.env.FORCE_HYDRATE === 'true';
     console.log(`Dry run for git branch ${gitBranch}:`);
     console.log(` - Supabase branch: ${branchName} (${branch ? 'reuse existing' : 'create new'})`);
@@ -456,8 +576,8 @@ async function main() {
   await applyPendingMigrations(target);
 
   const shouldHydrate = createdNow || process.env.FORCE_HYDRATE === 'true';
-  let authCounts = null;
-  let tableCounts = null;
+  let authCounts: AuthCopyCounts | null = null;
+  let tableCounts: Record<string, number> | null = null;
   if (shouldHydrate) {
     authCounts = await copyAuthUsers(source, target);
     tableCounts = await copyPublicData(source, target);
@@ -499,7 +619,7 @@ ${target.SUPABASE_URL}/auth/v1/callback
   console.log(summary);
 }
 
-main().catch((error) => {
-  console.error(error.stack || error);
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.stack : error);
   process.exit(1);
 });

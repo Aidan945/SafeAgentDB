@@ -3,12 +3,25 @@ import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 import { Client } from 'pg';
 
+interface BranchingConfig {
+  supabase?: {
+    parentProjectRef?: string;
+    developBranchName?: string;
+  };
+}
+
+interface BranchDetails {
+  POSTGRES_URL: string;
+}
+
 const CONFIG_PATH = process.env.BRANCHING_CONFIG_PATH || 'branching-config.json';
-const config = existsSync(CONFIG_PATH) ? JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) : {};
+const config: BranchingConfig = existsSync(CONFIG_PATH)
+  ? (JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) as BranchingConfig)
+  : {};
 const parentProjectRef = process.env.SUPABASE_PARENT_PROJECT_REF || config.supabase?.parentProjectRef;
 const defaultBranchName = process.env.SUPABASE_BRANCH_NAME || config.supabase?.developBranchName || 'develop';
 
-function run(command, args) {
+function run(command: string, args: string[]): string {
   const result = spawnSync(command, args, {
     encoding: 'utf8',
     shell: process.platform === 'win32',
@@ -19,38 +32,38 @@ function run(command, args) {
   return result.stdout || '';
 }
 
-function supabase(args) {
+function supabase(args: string[]): string {
   return run(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['supabase', ...args]);
 }
 
-function parseJson(output) {
+function parseJson<T>(output: string): T {
   const first = output.indexOf('{');
   const last = output.lastIndexOf('}');
   if (first === -1 || last <= first) throw new Error(`Could not parse JSON:\n${output}`);
-  return JSON.parse(output.slice(first, last + 1));
+  return JSON.parse(output.slice(first, last + 1)) as T;
 }
 
-function databaseUrlForBranch(branchName) {
+function databaseUrlForBranch(branchName: string): string {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
   if (!parentProjectRef) throw new Error('Missing SUPABASE_PARENT_PROJECT_REF or DATABASE_URL.');
-  const branch = parseJson(supabase(['branches', 'get', branchName, '--project-ref', parentProjectRef, '-o', 'json']));
+  const branch = parseJson<BranchDetails>(supabase(['branches', 'get', branchName, '--project-ref', parentProjectRef, '-o', 'json']));
   return branch.POSTGRES_URL;
 }
 
-async function pendingMigrationFiles(client) {
+async function pendingMigrationFiles(client: Client): Promise<string[]> {
   await client.query('set role postgres');
   const { rows } = await client.query('select version from supabase_migrations.schema_migrations');
-  const applied = new Set(rows.map((row) => row.version));
+  const applied = new Set((rows as Array<{ version: string }>).map((row) => row.version));
   return readdirSync('supabase/migrations')
     .filter((file) => file.endsWith('.sql'))
     .sort()
     .filter((file) => {
       const match = file.match(/^(\d+)_(.+)\.sql$/);
-      return match && !applied.has(match[1]);
+      return match !== null && !applied.has(match[1]);
     });
 }
 
-async function main() {
+async function main(): Promise<void> {
   const branchName = process.argv[2] || defaultBranchName;
   const dryRun = process.argv.includes('--dry-run') || process.argv.includes('dry-run');
   const client = new Client({ connectionString: databaseUrlForBranch(branchName), ssl: { rejectUnauthorized: false } });
@@ -72,6 +85,7 @@ async function main() {
 
   for (const file of pending) {
     const match = file.match(/^(\d+)_(.+)\.sql$/);
+    if (!match) continue;
     const sql = readFileSync(`supabase/migrations/${file}`, 'utf8');
     await client.query('begin');
     try {
@@ -90,7 +104,7 @@ async function main() {
   await client.end();
 }
 
-main().catch((error) => {
-  console.error(error.stack || error);
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.stack : error);
   process.exit(1);
 });

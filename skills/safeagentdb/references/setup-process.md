@@ -56,8 +56,8 @@ Do not invent schema. Do not tell the user to paste SQL manually into the dashbo
 1. Copy `templates/docs/database-branching.md` into the target repo's docs directory and fill in the placeholders as the proposed plan: environment map, identifiers, hydration policy, secrets list, persistent previews. Review this document with the user before installing anything else. It stays in the repo as the source of truth.
 2. Copy `templates/branching-config.example.json` to `branching-config.json`.
 3. Fill in project-specific refs, branch names, Vercel IDs, env var names, persistent previews, and hydration policy.
-4. Copy `templates/scripts/supabase/*.mjs` to `scripts/supabase/`.
-5. Copy `templates/scripts/ci/*.mjs` to `scripts/ci/`.
+4. Copy `templates/scripts/supabase/*.ts` to `scripts/supabase/`.
+5. Copy `templates/scripts/ci/*.ts` to `scripts/ci/`. The scripts are fully typed and pass `tsc --strict`; if the target app's `tsconfig.json` includes `scripts/`, they will typecheck cleanly, or exclude `scripts/` if the app uses conflicting compiler options.
 6. Merge `templates/package-scripts.json` into `package.json`.
 7. Ensure required dev dependencies from `templates/package-dev-dependencies.json` are installed or already available.
 8. Copy workflow templates into `.github/workflows/`.
