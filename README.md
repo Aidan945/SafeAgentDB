@@ -10,7 +10,9 @@ Built first for **Supabase + Vercel + GitHub Actions**, with guidance for adapti
 
 ## Install The Skill
 
-SafeAgentDB is listed on [skills.sh](https://www.skills.sh/aidan945/safeagentdb/safeagentdb), the open agent skills directory. Install it with the `skills` CLI:
+SafeAgentDB is listed on [skills.sh](https://www.skills.sh/aidan945/safeagentdb/safeagentdb), the open agent skills directory, and on [ClawHub](https://clawhub.ai/skills/safeagentdb), the OpenClaw skill registry.
+
+Install with the `skills` CLI:
 
 ```bash
 npx skills add https://github.com/Aidan945/SafeAgentDB --skill safeagentdb
@@ -28,6 +30,12 @@ You can also target a specific agent:
 npx skills add Aidan945/SafeAgentDB --skill safeagentdb --agent cursor
 npx skills add Aidan945/SafeAgentDB --skill safeagentdb --agent codex
 npx skills add Aidan945/SafeAgentDB --skill safeagentdb --agent claude-code
+```
+
+Or install with OpenClaw:
+
+```bash
+openclaw skills install safeagentdb
 ```
 
 ## Use The Skill
